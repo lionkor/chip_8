@@ -21,6 +21,7 @@ public:
     unsigned short sp;          // stack pointer
     unsigned char key[16];      // keypad (HEX)
     bool draw_flag;             // draw flag (redraw needed)
+    void(*beep_fn)() = nullptr;
     
     void initialize ();
     void load_program (const char* program_name);

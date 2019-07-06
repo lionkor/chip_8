@@ -115,6 +115,12 @@ void Chip8::emulate_cycle ()
             pc = opcode & 0x0FFF;
             printf ("Jump to 0x%X\n", pc);
             break;
+        case 0x2000: // 0x2NNN call subroutine at address NNN
+            stack[sp] = pc; // store program counter in stack
+            ++sp; // advance stack pointer
+            pc = opcode & 0x0FFF; // "jump" to subroutine at NNN
+            printf ("Call subroutine at 0x%X (from 0x%X)\n", pc, stack[sp - 1]);
+            break;
         case 0x3000: // 0x3XNN if(VX == NN) skip next instruction
             printf ("Skip one instruction if V[0x%X] == 0x%X\n", (opcode & 0x0F00) >> 8, (opcode & 0x00FF));
             if (V[(opcode & 0x0F00) >> 8] == (opcode & 0x00FF))
@@ -141,23 +147,6 @@ void Chip8::emulate_cycle ()
             }
             pc += 2; // normal advancement in program
             break;
-        case 0x6000: // 0x6XNN set VX to NN
-            V[(opcode & 0x0F00) >> 8] = opcode & 0x00FF;
-            printf ("Set V[0x%X] to 0x%X\n", (opcode & 0x0F00) >> 8, 
-                opcode & 0x00FF);
-            pc += 2;
-            break;
-        case 0xA000: // 0xANNN movi: move NNN into I
-            I = opcode & 0x0FFF; // move last 12 bits into I
-            printf ("Move 0x%X into I\n", I);
-            pc += 0x2; // advance by 2 bytes (size of opcode)
-            break;
-        case 0x2000: // 0x2NNN call subroutine at address NNN
-            stack[sp] = pc; // store program counter in stack
-            ++sp; // advance stack pointer
-            pc = opcode & 0x0FFF; // "jump" to subroutine at NNN
-            printf ("Call subroutine at 0x%X (from 0x%X)\n", pc, stack[sp - 1]);
-            break;
         case 0x5000: // 0x5XY0 Skips next instruction if VX == VY
             printf ("Skip one instruction if V[0x%X] == V[0x%X]\n", (opcode & 0x0F00) >> 8, (opcode & 0x00F0) >> 4);
             if (V[(opcode & 0x0F00) >> 8] == V[(opcode & 0x00F0) >> 4])
@@ -169,6 +158,12 @@ void Chip8::emulate_cycle ()
             {
                 printf ("   FALSE\n");
             }
+            pc += 2;
+            break;
+        case 0x6000: // 0x6XNN set VX to NN
+            V[(opcode & 0x0F00) >> 8] = opcode & 0x00FF;
+            printf ("Set V[0x%X] to 0x%X\n", (opcode & 0x0F00) >> 8, 
+                opcode & 0x00FF);
             pc += 2;
             break;
         case 0x7000: // 0x7XNN Add NN to VX
@@ -277,6 +272,15 @@ void Chip8::emulate_cycle ()
             }
             pc += 2;
             break;
+        case 0xA000: // 0xANNN move NNN into I
+            I = opcode & 0x0FFF; // move last 12 bits into I
+            printf ("Move 0x%X into I\n", I);
+            pc += 0x2; // advance by 2 bytes (size of opcode)
+            break;
+        case 0xB000: // 0xBNNN jump to NNN + V0
+            pc = (opcode & 0x0FFF) + V[0x0];
+            printf ("Jump to 0x%X + V[0x0]", opcode & 0x0FFF);
+            break;
         case 0xC000: // 0xCXNN Sets VX to the result of "rand & NN"
             V[(opcode & 0x0F00) >> 8] = (rand () % 255) & (opcode & 0x00FF);
             pc += 2;
@@ -327,6 +331,21 @@ void Chip8::emulate_cycle ()
         case 0xE000: // Multiple instructions
             switch (opcode & 0x00FF)
             {
+                case 0x009E: // 0xEX9E skip next instruction if key in VX *IS* pressed
+                {
+                    printf ("Skip next instruction if key[V[0x%X]] pressed\n", (opcode & 0x0F00) >> 8);
+                    if (key[V[(opcode & 0x0F00) >> 8]] != 0)
+                    {
+                        printf ("   TRUE\n");
+                        pc += 2;
+                    }
+                    else
+                    {
+                        printf ("   FALSE\n");
+                    }
+                    pc += 2;
+                    break;
+                }
                 case 0x00A1: // 0xEXA1 skip next instruction if key in VX *IS NOT* pressed
                 {
                     printf ("Skip next instruction if key[V[0x%X]] not pressed\n", (opcode & 0x0F00) >> 8);
@@ -342,27 +361,13 @@ void Chip8::emulate_cycle ()
                     pc += 2;
                     break;
                 }
-                case 0x009E: // 0xEX9E skip next instruction if key in VX *IS* pressed
-                {
-                    printf ("Skip next instruction if key[V[0x%X]] pressed\n", (opcode & 0x0F00) >> 8);
-                    if (key[V[(opcode & 0x0F00) >> 8]] != 0)
-                    {
-                        printf ("   TRUE\n");
-                        pc += 2;
-                    }
-                    else
-                    {
-                        printf ("   FALSE\n");
-                    }
-                    pc += 2;
-                    break;
-                } 
+                
                 default:
                     printf ("Unknown opcode / not implemented: 0x%X\n", opcode);
                     break;
             }
             break;
-        case 0xF000: 
+        case 0xF000: // Multiple instructions
             switch (opcode & 0x00FF)
             {
                 case 0x0007: // 0xFX07 Sets VX to value of delay_timer
@@ -453,6 +458,10 @@ void Chip8::emulate_cycle ()
     {
         if (sound_timer == 1)
         {
+            if (beep_fn != nullptr)
+            {
+                beep_fn ();
+            }
             printf ("BEEP!\n");
         }
         --sound_timer;

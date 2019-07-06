@@ -1,14 +1,25 @@
 #include <iostream>
 #include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
 #include <cstring>
 #include "chip_8.hh"
 
 Chip8 chip8;
 
+void beep ()
+{
+    sf::SoundBuffer buffer;
+    buffer.loadFromFile("beep.wav");
+    sf::Sound sound;
+    sound.setBuffer(buffer);
+    sound.play();
+}
+
 int main (int argc, char* argv[])
 {
     chip8.initialize ();
-    chip8.load_program ("chip8/demos/Maze [David Winter, 199x].ch8");
+    chip8.beep_fn = beep;
+    chip8.load_program ("invaders.c8");
     
     sf::RenderWindow* window = new sf::RenderWindow { sf::VideoMode (64*16, 32*16), "CHIP-8" };
     sf::Event event;
@@ -23,12 +34,7 @@ int main (int argc, char* argv[])
     std::size_t index = 0;
     
     while (window->isOpen ())
-    {
-        if (chip8.halt_flag)
-        {
-            
-        }
-        
+    {        
         chip8.emulate_cycle ();
         
         if (chip8.draw_flag)
@@ -79,6 +85,7 @@ int main (int argc, char* argv[])
                     {
                         case sf::Keyboard::Num1:
                             chip8.key[0x1] = 0x1;
+                            chip8.beep_fn ();
                             break;
                         case sf::Keyboard::Num2:
                             chip8.key[0x2] = 0x1;
