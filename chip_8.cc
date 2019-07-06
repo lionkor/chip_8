@@ -152,62 +152,31 @@ void Chip8::emulate_cycle ()
             printf ("Move 0x%X into I\n", I);
             pc += 0x2; // advance by 2 bytes (size of opcode)
             break;
-        case 0xF000:
-            switch (opcode & 0x00FF)
-            {
-                case 0x0007: // 0xFX07 Sets VX to value of delay_timer
-                    V[(opcode & 0x0F00) >> 8] = delay_timer;
-                    pc += 2;
-                    printf ("Set V[0x%X] to delay_timer (0x%X)\n", (opcode & 0x0F00) >> 8, delay_timer);
-                    break;
-                case 0x0015: // 0xFX15 Sets delay_timer to X
-                    delay_timer = (opcode & 0x0F00) >> 8;
-                    pc += 2;
-                    printf ("Set delay_timer to 0x%X\n", delay_timer);
-                    break;
-                case 0x0018: // 0xFX18 Set sound timer to VX
-                    sound_timer = V[(opcode & 0x0F00) >> 8];
-                    pc += 2;
-                    printf ("Set sound_timer to V[0x%X]\n", (opcode & 0x0F00) >> 8);
-                    break;
-                case 0x0029: // 0xFX29 Sets I to the location of the sprite for the character &VX.
-                    I = V[(opcode & 0x0F00) >> 8] * 0x5;
-                    pc += 2;
-                    printf ("I = V[0x%X] * 5 |=> 0x%X\n", (opcode & 0x0F00) >> 8, I);
-                    break;
-                case 0x0033: // 0xFX33 Binary coded decimal (BCD)
-                    memory[I] = V[(opcode & 0x0F00) >> 8] / 100;
-                    memory[I + 1] = (V[(opcode & 0x0F00) >> 8] / 10) % 10;
-                    memory[I + 2] = (V[(opcode & 0x0F00) >> 8] % 100) % 10;
-                    pc += 2;
-                    printf ("Binary coded decimal of 0x%X\n", (opcode & 0x0F00) >> 8);
-                    break;
-                case 0x0065: // 0xFX65 Fills V0 to VX with values from memory from I->.
-                    for (unsigned short i = 0; i <= ((opcode & 0x0F00) >> 8); ++i)
-                        // "<=" because X is inclusive
-                    {
-                        V[i] = memory[I + i]; // TODO untested
-                    }
-                    printf ("Filled V0-V%X with values from memory range 0x%X-0x%X\n", (opcode & 0x0F00) >> 8, I, I + ((opcode & 0x0F00) >> 8));
-                    pc += 2;
-                    break;
-                default:
-                    printf ("Unknown opcode / not implemented: 0x%X\n", opcode);
-                    break;
-            }
-            break;
         case 0x2000: // 0x2NNN call subroutine at address NNN
             stack[sp] = pc; // store program counter in stack
             ++sp; // advance stack pointer
             pc = opcode & 0x0FFF; // "jump" to subroutine at NNN
             printf ("Call subroutine at 0x%X (from 0x%X)\n", pc, stack[sp - 1]);
             break;
+        case 0x5000: // 0x5XY0 Skips next instruction if VX == VY
+            printf ("Skip one instruction if V[0x%X] == V[0x%X]\n", (opcode & 0x0F00) >> 8, (opcode & 0x00F0) >> 4);
+            if (V[(opcode & 0x0F00) >> 8] == V[(opcode & 0x00F0) >> 4])
+            {
+                printf ("   TRUE\n");
+                pc += 2;
+            }
+            else
+            {
+                printf ("   FALSE\n");
+            }
+            pc += 2;
+            break;
         case 0x7000: // 0x7XNN Add NN to VX
             V[(opcode & 0x0F00) >> 8] += opcode & 0x00FF;
             pc += 2;
             printf ("Add 0x%X to V[0x%X] (no carry)\n", opcode & 0x00FF, (opcode & 0x0F00) >> 8);
             break;
-        case 0x8000: // 0x8NNN
+        case 0x8000: // 0x8NNN Multiple instructions
             switch (opcode & 0x000F)
             {
                 case 0x0000: // 0x8XY0 Set VX to value of VY
@@ -295,6 +264,19 @@ void Chip8::emulate_cycle ()
                     break;
             }
             break;
+        case 0x9000: // 0x9XY0 Skips next instruction if VX != VY
+            printf ("Skip one instruction if V[0x%X] != V[0x%X]\n", (opcode & 0x0F00) >> 8, (opcode & 0x00F0) >> 4);
+            if (V[(opcode & 0x0F00) >> 8] != V[(opcode & 0x00F0) >> 4])
+            {
+                printf ("   TRUE\n");
+                pc += 2;
+            }
+            else
+            {
+                printf ("   FALSE\n");
+            }
+            pc += 2;
+            break;
         case 0xC000: // 0xCXNN Sets VX to the result of "rand & NN"
             V[(opcode & 0x0F00) >> 8] = (rand () % 255) & (opcode & 0x00FF);
             pc += 2;
@@ -342,10 +324,10 @@ void Chip8::emulate_cycle ()
             
             break;
         }
-        case 0xE000:
+        case 0xE000: // Multiple instructions
             switch (opcode & 0x00FF)
             {
-                case 0x00A1: // 0xEXA1 skip next instruction if key in VX not pressed
+                case 0x00A1: // 0xEXA1 skip next instruction if key in VX *IS NOT* pressed
                 {
                     printf ("Skip next instruction if key[V[0x%X]] not pressed\n", (opcode & 0x0F00) >> 8);
                     if (key[V[(opcode & 0x0F00) >> 8]] == 0)
@@ -360,6 +342,93 @@ void Chip8::emulate_cycle ()
                     pc += 2;
                     break;
                 }
+                case 0x009E: // 0xEX9E skip next instruction if key in VX *IS* pressed
+                {
+                    printf ("Skip next instruction if key[V[0x%X]] pressed\n", (opcode & 0x0F00) >> 8);
+                    if (key[V[(opcode & 0x0F00) >> 8]] != 0)
+                    {
+                        printf ("   TRUE\n");
+                        pc += 2;
+                    }
+                    else
+                    {
+                        printf ("   FALSE\n");
+                    }
+                    pc += 2;
+                    break;
+                } 
+                default:
+                    printf ("Unknown opcode / not implemented: 0x%X\n", opcode);
+                    break;
+            }
+            break;
+        case 0xF000: 
+            switch (opcode & 0x00FF)
+            {
+                case 0x0007: // 0xFX07 Sets VX to value of delay_timer
+                    V[(opcode & 0x0F00) >> 8] = delay_timer;
+                    pc += 2;
+                    printf ("Set V[0x%X] to delay_timer (0x%X)\n", (opcode & 0x0F00) >> 8, delay_timer);
+                    break;
+                case 0x000A: // 0xFX0A Halts (blocking) until any key is pressed
+                    printf ("Blocking until keypress\n");
+                    for (unsigned char _c = 0; _c < 0xF; ++_c)
+                    {
+                        if (key[_c] != 0)
+                        {
+                            pc += 2; // we only increment the counter if we get a keypress
+                            V[(opcode & 0x0F00) >> 8] = _c;
+                            printf ("Unblocking due to 0x%X being pressed\n", _c);
+                            break;
+                        }
+                        // not getting a keypress leads to an infinite loop
+                    }
+                    break;
+                case 0x0015: // 0xFX15 Sets delay_timer to X
+                    delay_timer = (opcode & 0x0F00) >> 8;
+                    pc += 2;
+                    printf ("Set delay_timer to 0x%X\n", delay_timer);
+                    break;
+                case 0x0018: // 0xFX18 Set sound timer to VX
+                    sound_timer = V[(opcode & 0x0F00) >> 8];
+                    pc += 2;
+                    printf ("Set sound_timer to V[0x%X]\n", (opcode & 0x0F00) >> 8);
+                    break;
+                case 0x001E: // 0xFX1E Adds VX to I
+                    I += V[(opcode & 0x0F00) >> 8];
+                    pc += 2;
+                    printf ("Add V[0x%X] to I\n", (opcode & 0x0F00) >> 8);
+                    break;
+                case 0x0029: // 0xFX29 Sets I to the location of the sprite for the character &VX.
+                    I = V[(opcode & 0x0F00) >> 8] * 0x5;
+                    pc += 2;
+                    printf ("I = V[0x%X] * 5 |=> 0x%X\n", (opcode & 0x0F00) >> 8, I);
+                    break;
+                case 0x0033: // 0xFX33 Binary coded decimal (BCD)
+                    memory[I] = V[(opcode & 0x0F00) >> 8] / 100;
+                    memory[I + 1] = (V[(opcode & 0x0F00) >> 8] / 10) % 10;
+                    memory[I + 2] = (V[(opcode & 0x0F00) >> 8] % 100) % 10;
+                    pc += 2;
+                    printf ("Binary coded decimal of 0x%X\n", (opcode & 0x0F00) >> 8);
+                    break;
+                case 0x0055: // 0xFX55 Stores V0-VX to memory starting at I
+                    for (unsigned short i = 0; i <= ((opcode & 0x0F00) >> 8); ++i)
+                        // "<=" because X is inclusive
+                    {
+                        memory[I + i] = V[i]; // TODO test me!
+                    }
+                    printf ("Filled memory range 0x%X-0x%X with values from V0-V%X\n", I, I + ((opcode & 0x0F00) >> 8), (opcode & 0x0F00) >> 8);
+                    pc += 2;
+                    break;
+                case 0x0065: // 0xFX65 Fills V0 to VX with values from memory from I->.
+                    for (unsigned short i = 0; i <= ((opcode & 0x0F00) >> 8); ++i)
+                        // "<=" because X is inclusive
+                    {
+                        V[i] = memory[I + i]; // TODO test me!
+                    }
+                    printf ("Filled V0-V%X with values from memory range 0x%X-0x%X\n", (opcode & 0x0F00) >> 8, I, I + ((opcode & 0x0F00) >> 8));
+                    pc += 2;
+                    break;
                 default:
                     printf ("Unknown opcode / not implemented: 0x%X\n", opcode);
                     break;

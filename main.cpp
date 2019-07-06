@@ -8,7 +8,7 @@ Chip8 chip8;
 int main (int argc, char* argv[])
 {
     chip8.initialize ();
-    chip8.load_program ("pong2.c8");
+    chip8.load_program ("chip8/demos/Maze [David Winter, 199x].ch8");
     
     sf::RenderWindow* window = new sf::RenderWindow { sf::VideoMode (64*16, 32*16), "CHIP-8" };
     sf::Event event;
@@ -16,7 +16,7 @@ int main (int argc, char* argv[])
     window->clear ();
     window->display ();
     
-    //window->setFramerateLimit (60); // 60Hz Clock
+    window->setFramerateLimit (1200); // 60Hz Clock
     
     sf::VertexArray varray = sf::VertexArray (sf::PrimitiveType::Quads, 64 * 32 * 4);
     
@@ -24,6 +24,11 @@ int main (int argc, char* argv[])
     
     while (window->isOpen ())
     {
+        if (chip8.halt_flag)
+        {
+            
+        }
+        
         chip8.emulate_cycle ();
         
         if (chip8.draw_flag)
