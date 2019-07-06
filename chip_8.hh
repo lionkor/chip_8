@@ -4,22 +4,27 @@
 #define CHIP_8_CHIP_8_HH
 
 
+#include <string>
+
 class Chip8
 {
-private:
-    unsigned short  opcode;         // opcode has 2 bytes
-    unsigned char   memory[4096];   // 4k memory
-    unsigned char   V[16];          // general purpose registers V0-VE
-    unsigned short  I;              // index register
-    unsigned short  pc;             // program counter
-    unsigned char   gfx[64 * 32];   // graphics (pixel on / pixel off)
-    unsigned char   delay_timer;    // 
-    unsigned char   sound_timer;    // sounds buzzer when it reaches zero 
-    unsigned short  stack[16];      // stack
-    unsigned short  sp;      // stack pointer
-    unsigned char   key[16];
 public:
+    unsigned char memory[0x1000];   // 4k memory (4096 == 0x1000)
+    unsigned short opcode;      // opcode has 2 bytes
+    unsigned char V[16];        // general purpose registers V0-VE and carry VF
+    unsigned short I;           // index register
+    unsigned short pc;          // program counter
+    unsigned char gfx[64 * 32]; // graphics (pixel on / pixel off)
+    unsigned char delay_timer;  // 60 HZ timer
+    unsigned char sound_timer;  // 60 HZ timer, sounds buzzer when it reaches zero 
+    unsigned short stack[16];   // stack
+    unsigned short sp;          // stack pointer
+    unsigned char key[16];      // keypad (HEX)
+    bool draw_flag;             // draw flag (redraw needed)
+    
     void initialize ();
+    void load_program (const char* program_name);
+    void emulate_cycle ();
 };
 
 
