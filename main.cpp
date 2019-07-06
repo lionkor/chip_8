@@ -8,39 +8,43 @@ Chip8 chip8;
 int main (int argc, char* argv[])
 {
     chip8.initialize ();
-    chip8.load_program ("pong");
+    chip8.load_program ("pong2.c8");
     
-    sf::RenderWindow window { sf::VideoMode (64*16, 32*16), "CHIP-8" };
+    sf::RenderWindow* window = new sf::RenderWindow { sf::VideoMode (64*16, 32*16), "CHIP-8" };
     sf::Event event;
     
-    window.clear ();
-    window.display ();
+    window->clear ();
+    window->display ();
     
-    window.setFramerateLimit (60); // 60Hz Clock
+    //window->setFramerateLimit (60); // 60Hz Clock
     
-    sf::VertexArray varray = sf::VertexArray (sf::PrimitiveType::Quads);
+    sf::VertexArray varray = sf::VertexArray (sf::PrimitiveType::Quads, 64 * 32 * 4);
     
-    while (window.isOpen ())
+    std::size_t index = 0;
+    
+    while (window->isOpen ())
     {
         chip8.emulate_cycle ();
         
         if (chip8.draw_flag)
         {
-            window.clear ();
+            //window->clear ();
             //varray.clear ();
             
+            index = 0;
             for (int x = 0; x < 64; ++x)
             for (int y = 0; y < 32; ++y)
             {
                 sf::Color color = chip8.gfx[y * 64 + x] == 0 ? sf::Color::Black : sf::Color::White;
-                varray.append (sf::Vertex ({ x * 16.0f,         y * 16.0f       }, color));
-                varray.append (sf::Vertex ({ x * 16.0f + 16,    y * 16.0f       }, color));
-                varray.append (sf::Vertex ({ x * 16.0f + 16,    y * 16.0f + 16  }, color));
-                varray.append (sf::Vertex ({ x * 16.0f,         y * 16.0f + 16  }, color));
+                varray[index + 0] = sf::Vertex ({ x * 16.0f,         y * 16.0f       }, color);
+                varray[index + 1] = sf::Vertex ({ x * 16.0f + 16,    y * 16.0f       }, color);
+                varray[index + 2] = sf::Vertex ({ x * 16.0f + 16,    y * 16.0f + 16  }, color);
+                varray[index + 3] = sf::Vertex ({ x * 16.0f,         y * 16.0f + 16  }, color);
+                index += 4;
             }
             
-            window.draw (varray);
-            window.display ();
+            window->draw (varray);
+            window->display ();
         }
         
         for (int i = 0; i < sizeof (chip8.key); ++i)
@@ -59,12 +63,12 @@ int main (int argc, char* argv[])
         // clear all keys
         memset (chip8.key, 0x0, sizeof (chip8.key));
         
-        while (window.pollEvent (event))
+        while (window->pollEvent (event))
         {
             switch (event.type)
             {
                 case sf::Event::Closed:
-                    window.close ();
+                    window->close ();
                 case sf::Event::KeyPressed:
                     switch (event.key.code)
                     {

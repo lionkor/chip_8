@@ -48,6 +48,9 @@ void Chip8::initialize ()
     // reset timers
     delay_timer = 0x00;
     sound_timer = 0x00;
+    
+    // seed random number generator
+    srand (time (0));
 }
 
 void Chip8::load_program (const char* program_name)
@@ -72,6 +75,20 @@ void Chip8::emulate_cycle ()
     
     printf ("→ opcode: 0x%X\n", opcode);
     
+    if (opcode == 0xFFFF)
+    {
+        pc += 2;
+        printf ("BREAK\n");
+        goto BRK;
+    }
+    else if (opcode == 0x0000)
+    {
+        // END OF PROGRAM
+        printf ("END OF PROGRAM REACHED\n");
+        pc = 0x200;
+        goto BRK;
+    }
+    
     // decode opcode
     switch (opcode & 0xF000)
     {
@@ -81,7 +98,7 @@ void Chip8::emulate_cycle ()
                 case 0x0000: // 0x00E0 clear screen
                     memset (gfx, 0x0, sizeof (gfx));
                     pc += 2;
-                    printf ("Clear screen buffer");
+                    printf ("Clear screen buffer\n");
                     break;
                 case 0x000E: // 0x00EE return from subroutine
                     pc = stack[sp-1];
@@ -89,11 +106,31 @@ void Chip8::emulate_cycle ()
                     pc += 2; // advance, otherwise infinite loop
                     printf ("Return from subroutine: sp: 0x%X, pc: 0x%X\n", sp, pc);
                     break;
+                default:
+                    printf ("Unknown opcode / not implemented: 0x%X\n", opcode);
+                    break;
             }
+            break;
+        case 0x1000: // 0x1NNN Jump to NNN
+            pc = opcode & 0x0FFF;
+            printf ("Jump to 0x%X\n", pc);
             break;
         case 0x3000: // 0x3XNN if(VX == NN) skip next instruction
             printf ("Skip one instruction if V[0x%X] == 0x%X\n", (opcode & 0x0F00) >> 8, (opcode & 0x00FF));
             if (V[(opcode & 0x0F00) >> 8] == (opcode & 0x00FF))
+            {
+                pc += 2; // skip one instruction
+                printf ("   TRUE\n");
+            }
+            else
+            {
+                printf ("   FALSE\n");
+            }
+            pc += 2; // normal advancement in program
+            break;
+        case 0x4000: // 0x4XNN if(VX != NN) skip next instruction
+            printf ("Skip one instruction if V[0x%X] != 0x%X\n", (opcode & 0x0F00) >> 8, (opcode & 0x00FF));
+            if (V[(opcode & 0x0F00) >> 8] != (opcode & 0x00FF))
             {
                 pc += 2; // skip one instruction
                 printf ("   TRUE\n");
@@ -118,29 +155,34 @@ void Chip8::emulate_cycle ()
         case 0xF000:
             switch (opcode & 0x00FF)
             {
-                case 0x0007: // FX07 Sets VX to value of delay_timer
+                case 0x0007: // 0xFX07 Sets VX to value of delay_timer
                     V[(opcode & 0x0F00) >> 8] = delay_timer;
                     pc += 2;
                     printf ("Set V[0x%X] to delay_timer (0x%X)\n", (opcode & 0x0F00) >> 8, delay_timer);
                     break;
-                case 0x0015: // FX15 Sets delay_timer to X
+                case 0x0015: // 0xFX15 Sets delay_timer to X
                     delay_timer = (opcode & 0x0F00) >> 8;
                     pc += 2;
                     printf ("Set delay_timer to 0x%X\n", delay_timer);
                     break;
-                case 0x0029: // FX29 Sets I to the location of the sprite for the character &VX.
+                case 0x0018: // 0xFX18 Set sound timer to VX
+                    sound_timer = V[(opcode & 0x0F00) >> 8];
+                    pc += 2;
+                    printf ("Set sound_timer to V[0x%X]\n", (opcode & 0x0F00) >> 8);
+                    break;
+                case 0x0029: // 0xFX29 Sets I to the location of the sprite for the character &VX.
                     I = V[(opcode & 0x0F00) >> 8] * 0x5;
                     pc += 2;
                     printf ("I = V[0x%X] * 5 |=> 0x%X\n", (opcode & 0x0F00) >> 8, I);
                     break;
-                case 0x0033: // FX33 Binary coded decimal (BCD)
+                case 0x0033: // 0xFX33 Binary coded decimal (BCD)
                     memory[I] = V[(opcode & 0x0F00) >> 8] / 100;
                     memory[I + 1] = (V[(opcode & 0x0F00) >> 8] / 10) % 10;
                     memory[I + 2] = (V[(opcode & 0x0F00) >> 8] % 100) % 10;
                     pc += 2;
                     printf ("Binary coded decimal of 0x%X\n", (opcode & 0x0F00) >> 8);
                     break;
-                case 0x0065: // FX65 Fills V0 to VX with values from memory from I->.
+                case 0x0065: // 0xFX65 Fills V0 to VX with values from memory from I->.
                     for (unsigned short i = 0; i <= ((opcode & 0x0F00) >> 8); ++i)
                         // "<=" because X is inclusive
                     {
@@ -148,6 +190,9 @@ void Chip8::emulate_cycle ()
                     }
                     printf ("Filled V0-V%X with values from memory range 0x%X-0x%X\n", (opcode & 0x0F00) >> 8, I, I + ((opcode & 0x0F00) >> 8));
                     pc += 2;
+                    break;
+                default:
+                    printf ("Unknown opcode / not implemented: 0x%X\n", opcode);
                     break;
             }
             break;
@@ -165,10 +210,30 @@ void Chip8::emulate_cycle ()
         case 0x8000: // 0x8NNN
             switch (opcode & 0x000F)
             {
-                case 0x0004: // 0x8XY4 add VY (V[Y]) to VX (V[X])
+                case 0x0000: // 0x8XY0 Set VX to value of VY
+                    V[(opcode & 0x0F00) >> 8] = V[(opcode & 0x00F0) >> 4];
+                    pc += 2;
+                    printf ("Set V[0x%X] to value of V[0x%X]\n", (opcode & 0x0F00) >> 8, (opcode & 0x00F0) >> 4);
+                    break;
+                case 0x0001: // 0x8XY1 Set VX to VX OR VY
+                    V[(opcode & 0x0F00) >> 8] |= V[(opcode & 0x00F0) >> 4];
+                    pc += 2;
+                    printf ("Set V[0x%X] to value of V[0x%X] | V[0x%X]\n", (opcode & 0x0F00) >> 8, (opcode & 0x0F00) >> 8, (opcode & 0x00F0) >> 4);
+                    break;
+                case 0x0002: // 0x8XY2 Set VX to VX AND VY
+                    V[(opcode & 0x0F00) >> 8] &= V[(opcode & 0x00F0) >> 4];
+                    pc += 2;
+                    printf ("Set V[0x%X] to value of V[0x%X] & V[0x%X]\n", (opcode & 0x0F00) >> 8, (opcode & 0x0F00) >> 8, (opcode & 0x00F0) >> 4);
+                    break;
+                case 0x0003: // 0x8XY2 Set VX to VX XOR VY
+                    V[(opcode & 0x0F00) >> 8] ^= V[(opcode & 0x00F0) >> 4];
+                    pc += 2;
+                    printf ("Set V[0x%X] to value of V[0x%X] ^ V[0x%X]\n", (opcode & 0x0F00) >> 8, (opcode & 0x0F00) >> 8, (opcode & 0x00F0) >> 4);
+                    break;
+                case 0x0004: // 0x8XY4 add VY to VX
                 {
                     // set carry flag if operation result > 0xFF (255)
-                    printf ("V[0x%X] += V[0x%X]", (opcode & 0x0F00) >> 8, (opcode & 0x00F0) >> 4);
+                    printf ("V[0x%X] += V[0x%X]\n", (opcode & 0x0F00) >> 8, (opcode & 0x00F0) >> 4);
                     if (V[(opcode & 0x0F00) >> 8] > 
                         0xFF - V[(opcode & 0x00F0) >> 4])
                     {
@@ -180,10 +245,60 @@ void Chip8::emulate_cycle ()
                         V[0xF] = 0x0;
                     }
                     V[(opcode & 0x0F00) >> 8] += V[(opcode & 0x00F0) >> 4];
+                    pc += 2;
                     break;
                 }
+                case 0x0005: // 0x8XY5 VY is subtracted from VX
+                    // set VF to 0 if borrow
+                    if (V[(opcode & 0x0F00) >> 8] < V[(opcode & 0x00F0) >> 4])
+                    {
+                        V[0xF] = 0x0; // borrow
+                        printf ("   TRUE (borrow)\n");
+                    }
+                    else
+                    {
+                        V[0xF] = 0x1; // no borrow
+                        printf ("   FALSE (no borrow)\n");
+                    }
+                    V[(opcode & 0x0F00) >> 8] -= V[(opcode & 0x00F0) >> 4];
+                    pc += 2;
+                    break;
+                case 0x0006: // 0x8XY6 Stores the least significant bit of VX in VF and then shifts VX to the right by 1
+                    V[0xF] = V[(opcode & 0x0F00) >> 8] & 0x0001;
+                    V[(opcode & 0x0F00) >> 8] >>= 0x1;
+                    pc += 2;
+                    printf ("Store lsb and shift V[0x%X] right by 1\n", (opcode & 0x0F00) >> 8);
+                    break;
+                case 0x0007: // 0x8XY7 Sets VX to VY - VX, VF is 0 if borrow, else 1
+                    printf ("Set V[0x%X] to V[0x%X] - V[0x%X]\n", (opcode & 0x0F00) >> 8, (opcode & 0x00F0) >> 4, (opcode & 0x0F00) >> 8);
+                    if (V[(opcode & 0x0F00) >> 8] > V[(opcode & 0x00F0) >> 4])
+                    {
+                        V[0xF] = 0x0; // borrow
+                        printf ("   TRUE (borrow)\n");
+                    }
+                    else
+                    {
+                        V[0xF] = 0x1; // no borrow
+                        printf ("   FALSE (no borrow)\n");
+                    }
+                    V[(opcode & 0x0F00) >> 8] = V[(opcode & 0x00F0) >> 4] - V[(opcode & 0x0F00) >> 8];
+                    pc += 2;
+                    break;
+                case 0x000E: // 0x8XYE Stores msb in VF and shifts VX left by 1
+                    printf ("Store msb and shift V[0x%X] left by 1\n", (opcode & 0x0F00) >> 8);
+                    V[0xF] = V[(opcode & 0x0F00) >> 8] & 0x1000;
+                    V[(opcode & 0x0F00) >> 8] <<= 0x1;
+                    pc += 2;
+                    break;
+                default:
+                    printf ("Unknown opcode / not implemented: 0x%X\n", opcode);
+                    break;
             }
+            break;
+        case 0xC000: // 0xCXNN Sets VX to the result of "rand & NN"
+            V[(opcode & 0x0F00) >> 8] = (rand () % 255) & (opcode & 0x00FF);
             pc += 2;
+            printf ("Set V[0x%X] to \"rand()&NN\" 0x%X\n", (opcode & 0x0F00) >> 8, V[(opcode & 0x0F00) >> 8]);
             break;
         case 0xD000: // 0xDXYN draw
         {
@@ -227,10 +342,37 @@ void Chip8::emulate_cycle ()
             
             break;
         }
+        case 0xE000:
+            switch (opcode & 0x00FF)
+            {
+                case 0x00A1: // 0xEXA1 skip next instruction if key in VX not pressed
+                {
+                    printf ("Skip next instruction if key[V[0x%X]] not pressed\n", (opcode & 0x0F00) >> 8);
+                    if (key[V[(opcode & 0x0F00) >> 8]] == 0)
+                    {
+                        printf ("   TRUE\n");
+                        pc += 2;
+                    }
+                    else
+                    {
+                        printf ("   FALSE\n");
+                    }
+                    pc += 2;
+                    break;
+                }
+                default:
+                    printf ("Unknown opcode / not implemented: 0x%X\n", opcode);
+                    break;
+            }
+            break;
         default:
             printf ("Unknown opcode / not implemented: 0x%X\n", opcode);
             break;
     }
+    
+    BRK:
+    
+    printf ("* PC: 0x%X\n", pc);
     
     // update timers
     if (delay_timer > 0)
