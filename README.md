@@ -1,4 +1,4 @@
-# chip_8
+# chip_8 (CHIP-8)
 My implementation attempt of a chip-8 emulator. [Wikipedia: CHIP-8](https://en.wikipedia.org/wiki/CHIP-8)
 
 All opcodes are implemented and have been tested manually.
