@@ -19,6 +19,12 @@ If this happens, it means that the emulator has reached an opcode that it does n
 
 This emulator does not support [`Super Chip-48` instructions](http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#3.2), but feel free to implement them yourself. Otherwise I might add them in the future if the "need" arises.
 
+#### "My program is stuck in an infinite loop"
+
+In this case it's important to note that this emulator will jump back to the start if it encounters `0x0000`, as a mechanism to never actually quit. This means all programs (unless they fill the memory completely with instructions) will behave as if they have a `0x1200` (`JP 0x200`) at the end.
+
+`0xFx0A` (`LD Vx`) will always cause "infinite loop"-like behaviour in the stdout logging. Due to the way this instruction is implemented, it will not advance the program counter (`Chip8::pc`) until a key has been pressed. This is practically an infinite loop. This achieves exactly what the instruction should do, and as such this behaviour can be ignored. Feel free to remove the `printf` statements to reduce the log spam in this instruction.
+
 #### "My program is not working without error"
 
 If anything doesn't work as intended, the best course of action is to step through the emulator running with a debugger and to look at the stdout log messages. These will give you some information about what the emulator tries to do, and is the easiest way to identify problems, together with a debugger (so you can check out the actual values of register and memory at runtime).
