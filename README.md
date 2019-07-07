@@ -3,4 +3,4 @@ My implementation attempt of a chip-8 emulator. https://en.wikipedia.org/wiki/CH
 
 All opcodes are implemented and have been tested manually. 
 
-You might have to adjust the `window->setTargetFramerate ()` to set your preferred clock speed (60 would be "specification").
+You might have to adjust the [`window->setTargetFramerate (...)`](https://github.com/lionkor/chip_8/blob/master/main.cpp#L30) to set your preferred clock speed (60 would be "specification").
